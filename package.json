@@ -1,5 +1,5 @@
 {
-  "name": "@furkanogutcu/nest-replace-me",
+  "name": "@furkanogutcu/nest-queue",
   "version": "0.0.1",
   "description": "",
   "author": "Furkan Ogutcu",
@@ -38,12 +38,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/furkanogutcu/nest-replace-me.git"
+    "url": "git+https://github.com/furkanogutcu/nest-queue.git"
   },
   "bugs": {
-    "url": "https://github.com/furkanogutcu/nest-replace-me/issues"
+    "url": "https://github.com/furkanogutcu/nest-queue/issues"
   },
-  "homepage": "https://github.com/furkanogutcu/nest-replace-me#readme",
+  "homepage": "https://github.com/furkanogutcu/nest-queue#readme",
   "peerDependencies": {
     "@nestjs/common": "^11.1.0",
     "@nestjs/core": "^11.1.0",
