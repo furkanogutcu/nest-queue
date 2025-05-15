@@ -3,7 +3,7 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { BaseAdapter } from '@bull-board/api/dist/src/queueAdapters/base';
 import { ExpressAdapter } from '@bull-board/express';
 import { Redis, RedisService } from '@furkanogutcu/nest-redis';
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Queue, QueueOptions } from 'bullmq';
 
@@ -12,7 +12,7 @@ import { BullBoardOptions, QueueConfig } from './interfaces/queue-module-options
 import { createBullBoardAuthMiddleware } from './middlewares/bull-board-auth.middleware';
 
 @Injectable()
-export class QueueService {
+export class QueueService implements OnModuleDestroy {
   private readonly redisClient: Redis;
   private readonly queues: Map<string, Queue> = new Map();
   private readonly options: QueueServiceOptions = {};
@@ -98,6 +98,26 @@ export class QueueService {
       app.use(bullBoardRoute, serverAdapter.getRouter());
     },
   };
+
+  async onModuleDestroy(): Promise<void> {
+    await this.close();
+  }
+
+  private async close(): Promise<void> {
+    const queues = this.getAll();
+
+    await Promise.all(
+      queues.map(async (queue) => {
+        try {
+          await queue.close();
+        } catch (error) {
+          console.error(`Error closing queue ${queue.name}:`, error);
+        }
+      }),
+    );
+
+    this.queues.clear();
+  }
 
   private initQueues(queuesConfig: QueueConfig[]): void {
     for (const queueConfig of queuesConfig) {
