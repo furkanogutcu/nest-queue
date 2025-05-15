@@ -14,6 +14,7 @@ NestJS queue management with BullMQ and Redis. Simple and type-safe.
   - [Using Custom Redis Key Prefix](#using-custom-redis-key-prefix)
   - [Using the Queue Service](#using-the-queue-service)
   - [Async Configuration](#async-configuration)
+  - [Bull Board UI](#bull-board-ui)
 - [Development](#development)
 - [License](#license)
 
@@ -251,6 +252,68 @@ import { QueueModule } from '@furkanogutcu/nest-queue';
 })
 export class AppModule {}
 ```
+
+### Bull Board UI
+
+You can enable the Bull Board UI to monitor and manage your queues:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { QueueModule } from '@furkanogutcu/nest-queue';
+import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
+
+@Module({
+  imports: [
+    QueueModule.register({
+      redis: {
+        url: 'redis://localhost:6379',
+      },
+      queues: [{ name: 'emails' }, { name: 'notifications' }],
+      // Configure Bull Board UI
+      bullBoard: {
+        route: 'admin/queues', // Will be accessible at /admin/queues
+      },
+    }),
+  ],
+})
+export class AppModule {}
+
+// In your main.ts file
+async function bootstrap() {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Get the QueueService to set up Bull Board
+  const queueService = app.get(QueueService);
+  queueService.bullBoard.setup(app);
+
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+#### Protecting Bull Board UI with Authentication
+
+You can add authentication to the Bull Board UI to restrict access:
+
+```typescript
+QueueModule.register({
+  redis: {
+    url: 'redis://localhost:6379',
+  },
+  queues: [{ name: 'emails' }, { name: 'notifications' }],
+  bullBoard: {
+    route: 'admin/queues',
+    // Add authentication
+    auth: {
+      username: 'admin',
+      password: 'securepassword',
+    },
+  },
+});
+```
+
+When the `auth` option is provided, the Bull Board UI will require Basic HTTP Authentication with the specified username and password.
 
 ## Development
 

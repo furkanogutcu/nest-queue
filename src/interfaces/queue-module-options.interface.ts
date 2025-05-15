@@ -1,3 +1,4 @@
+import { BoardOptions } from '@bull-board/api/dist/typings/app';
 import { RedisConnectionOptions, RedisService } from '@furkanogutcu/nest-redis';
 import { Provider } from '@nestjs/common';
 import { QueueOptions } from 'bullmq';
@@ -7,11 +8,21 @@ export interface QueueConfig {
   options?: QueueOptions;
 }
 
+export interface BullBoardOptions {
+  route: string;
+  options?: BoardOptions;
+  auth?: {
+    username: string;
+    password: string;
+  };
+}
+
 export interface QueueModuleOptions {
   redis: RedisService | RedisConnectionOptions;
   queues?: QueueConfig[];
   redisKeyPrefix?: string;
   isGlobal?: boolean;
+  bullBoard?: BullBoardOptions;
 }
 
 export interface QueueModuleAsyncOptions {

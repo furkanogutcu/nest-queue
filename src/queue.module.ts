@@ -31,7 +31,8 @@ export class QueueModule {
           return new QueueService({
             redisService,
             queuesConfig: options.queues,
-            defaultRedisKeyPrefix: options.redisKeyPrefix,
+            redisKeyPrefix: options.redisKeyPrefix,
+            bullBoard: options.bullBoard,
           });
         },
       },
@@ -71,7 +72,8 @@ export class QueueModule {
           return new QueueService({
             redisService,
             queuesConfig: moduleOptions.queues,
-            defaultRedisKeyPrefix: moduleOptions.redisKeyPrefix,
+            redisKeyPrefix: moduleOptions.redisKeyPrefix,
+            bullBoard: moduleOptions.bullBoard,
           });
         },
         inject: [QUEUE_MODULE_OPTIONS],

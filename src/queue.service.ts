@@ -1,18 +1,33 @@
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { BaseAdapter } from '@bull-board/api/dist/src/queueAdapters/base';
+import { ExpressAdapter } from '@bull-board/express';
 import { Redis, RedisService } from '@furkanogutcu/nest-redis';
 import { Injectable } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { Queue, QueueOptions } from 'bullmq';
 
-import { QueueConfig } from './interfaces/queue-module-options.interface';
+import { QueueServiceOptions } from './interfaces';
+import { BullBoardOptions, QueueConfig } from './interfaces/queue-module-options.interface';
+import { createBullBoardAuthMiddleware } from './middlewares/bull-board-auth.middleware';
 
 @Injectable()
 export class QueueService {
-  private readonly client: Redis;
+  private readonly redisClient: Redis;
   private readonly queues: Map<string, Queue> = new Map();
-  private readonly defaultRedisKeyPrefix?: string;
+  private readonly options: QueueServiceOptions = {};
 
-  constructor(options: { redisService: RedisService; queuesConfig?: QueueConfig[]; defaultRedisKeyPrefix?: string }) {
-    this.client = options.redisService.getClient();
-    this.defaultRedisKeyPrefix = options.defaultRedisKeyPrefix;
+  constructor(options: {
+    redisService: RedisService;
+    queuesConfig?: QueueConfig[];
+    redisKeyPrefix?: string;
+    bullBoard?: BullBoardOptions;
+  }) {
+    this.redisClient = options.redisService.getClient();
+
+    this.options.redisKeyPrefix = options.redisKeyPrefix;
+    this.options.bullBoard = options.bullBoard;
+
     this.initQueues(options.queuesConfig || []);
   }
 
@@ -22,12 +37,12 @@ export class QueueService {
     }
 
     const queueOptions: QueueOptions = {
-      connection: this.client,
+      connection: this.redisClient,
       ...options,
     };
 
-    if (this.defaultRedisKeyPrefix && !queueOptions.prefix) {
-      queueOptions.prefix = this.defaultRedisKeyPrefix;
+    if (this.options.redisKeyPrefix && !queueOptions.prefix) {
+      queueOptions.prefix = this.options.redisKeyPrefix;
     }
 
     const queue = new Queue(name, queueOptions);
@@ -50,6 +65,39 @@ export class QueueService {
   getAll(): Queue[] {
     return Array.from(this.queues.values());
   }
+
+  bullBoard = {
+    setup: (app: NestExpressApplication) => {
+      if (!this.options.bullBoard) {
+        return;
+      }
+
+      const serverAdapter = new ExpressAdapter();
+
+      const bullBoardRoute = this.options.bullBoard.route.startsWith('/')
+        ? this.options.bullBoard.route
+        : `/${this.options.bullBoard.route}`;
+
+      serverAdapter.setBasePath(bullBoardRoute);
+
+      const queues = this.getAll();
+
+      createBullBoard({
+        queues: queues.map((queue) => {
+          return new BullMQAdapter(queue);
+        }) as BaseAdapter[],
+        serverAdapter,
+        options: this.options.bullBoard.options,
+      });
+
+      if (this.options.bullBoard.auth) {
+        const authMiddleware = createBullBoardAuthMiddleware(this.options.bullBoard.auth);
+        app.use(bullBoardRoute, authMiddleware);
+      }
+
+      app.use(bullBoardRoute, serverAdapter.getRouter());
+    },
+  };
 
   private initQueues(queuesConfig: QueueConfig[]): void {
     for (const queueConfig of queuesConfig) {
