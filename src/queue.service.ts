@@ -10,6 +10,8 @@ import { Queue, QueueOptions } from 'bullmq';
 import { QueueServiceOptions } from './interfaces';
 import { BullBoardOptions, QueueConfig } from './interfaces/queue-module-options.interface';
 import { createBullBoardAuthMiddleware } from './middlewares/bull-board-auth.middleware';
+import { WorkerService } from './worker.service';
+import { BaseWorker } from './workers/base.worker';
 
 @Injectable()
 export class QueueService implements OnModuleDestroy {
@@ -17,18 +19,26 @@ export class QueueService implements OnModuleDestroy {
   private readonly queues: Map<string, Queue> = new Map();
   private readonly options: QueueServiceOptions = {};
 
-  constructor(options: {
-    redisService: RedisService;
-    queuesConfig?: QueueConfig[];
-    redisKeyPrefix?: string;
-    bullBoard?: BullBoardOptions;
-  }) {
-    this.redisClient = options.redisService.getClient();
+  constructor(
+    redisService: RedisService,
+    private readonly workerService: WorkerService,
+    options: {
+      queuesConfig?: QueueConfig[];
+      redisKeyPrefix?: string;
+      bullBoard?: BullBoardOptions;
+      workers?: BaseWorker[];
+    },
+  ) {
+    this.redisClient = redisService.getClient();
 
     this.options.redisKeyPrefix = options.redisKeyPrefix;
     this.options.bullBoard = options.bullBoard;
 
     this.initQueues(options.queuesConfig || []);
+
+    if (options.workers && options.workers.length > 0) {
+      this.initWorkers(options.workers);
+    }
   }
 
   create(name: string, options?: QueueOptions): Queue {
@@ -122,6 +132,18 @@ export class QueueService implements OnModuleDestroy {
   private initQueues(queuesConfig: QueueConfig[]): void {
     for (const queueConfig of queuesConfig) {
       this.create(queueConfig.name, queueConfig.options);
+    }
+  }
+
+  private initWorkers(workers: BaseWorker[]): void {
+    for (const worker of workers) {
+      const { queueName, ...workerOptions } = worker.options;
+
+      this.workerService.create({
+        queueName,
+        processor: worker.process,
+        options: workerOptions,
+      });
     }
   }
 }

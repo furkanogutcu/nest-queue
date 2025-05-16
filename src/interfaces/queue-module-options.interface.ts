@@ -3,6 +3,8 @@ import { RedisConnectionOptions, RedisService } from '@furkanogutcu/nest-redis';
 import { Provider } from '@nestjs/common';
 import { QueueOptions } from 'bullmq';
 
+import { BaseWorker } from '../workers/base.worker';
+
 export interface QueueConfig {
   name: string;
   options?: QueueOptions;
@@ -23,6 +25,7 @@ export interface QueueModuleOptions {
   redisKeyPrefix?: string;
   isGlobal?: boolean;
   bullBoard?: BullBoardOptions;
+  workers?: BaseWorker[];
 }
 
 export interface QueueModuleAsyncOptions {

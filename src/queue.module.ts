@@ -4,6 +4,7 @@ import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { QUEUE_MODULE_OPTIONS } from './constants/queue.constants';
 import { QueueModuleAsyncOptions, QueueModuleOptions } from './interfaces/queue-module-options.interface';
 import { QueueService } from './queue.service';
+import { WorkerService } from './worker.service';
 
 @Module({})
 export class QueueModule {
@@ -28,11 +29,13 @@ export class QueueModule {
             redisService = new RedisService(options.redis);
           }
 
-          return new QueueService({
-            redisService,
+          const workerService = new WorkerService(redisService);
+
+          return new QueueService(redisService, workerService, {
             queuesConfig: options.queues,
             redisKeyPrefix: options.redisKeyPrefix,
             bullBoard: options.bullBoard,
+            workers: options.workers,
           });
         },
       },
@@ -69,11 +72,13 @@ export class QueueModule {
             redisService = new RedisService(moduleOptions.redis);
           }
 
-          return new QueueService({
-            redisService,
+          const workerService = new WorkerService(redisService);
+
+          return new QueueService(redisService, workerService, {
             queuesConfig: moduleOptions.queues,
             redisKeyPrefix: moduleOptions.redisKeyPrefix,
             bullBoard: moduleOptions.bullBoard,
+            workers: moduleOptions.workers,
           });
         },
         inject: [QUEUE_MODULE_OPTIONS],
