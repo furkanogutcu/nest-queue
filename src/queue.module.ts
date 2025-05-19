@@ -4,12 +4,12 @@ import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { QUEUE_MODULE_OPTIONS } from './constants/queue.constants';
 import { QueueModuleAsyncOptions, QueueModuleOptions } from './interfaces/queue-module-options.interface';
 import { QueueService } from './queue.service';
-import { WorkerService } from './worker.service';
+import { WorkerRegistryModule } from './worker-registry';
 
 @Module({})
 export class QueueModule {
   static register(options: QueueModuleOptions): DynamicModule {
-    const providers = [
+    const providers: Provider[] = [
       {
         provide: QUEUE_MODULE_OPTIONS,
         useValue: options,
@@ -29,13 +29,10 @@ export class QueueModule {
             redisService = new RedisService(options.redis);
           }
 
-          const workerService = new WorkerService(redisService);
-
-          return new QueueService(redisService, workerService, {
+          return new QueueService(redisService, {
             queuesConfig: options.queues,
             redisKeyPrefix: options.redisKeyPrefix,
             bullBoard: options.bullBoard,
-            workers: options.workers,
           });
         },
       },
@@ -43,8 +40,9 @@ export class QueueModule {
 
     return {
       module: QueueModule,
+      imports: [WorkerRegistryModule],
       providers,
-      exports: [QueueService],
+      exports: [QueueService, WorkerRegistryModule],
       global: options.isGlobal ?? false,
     };
   }
@@ -72,13 +70,10 @@ export class QueueModule {
             redisService = new RedisService(moduleOptions.redis);
           }
 
-          const workerService = new WorkerService(redisService);
-
-          return new QueueService(redisService, workerService, {
+          return new QueueService(redisService, {
             queuesConfig: moduleOptions.queues,
             redisKeyPrefix: moduleOptions.redisKeyPrefix,
             bullBoard: moduleOptions.bullBoard,
-            workers: moduleOptions.workers,
           });
         },
         inject: [QUEUE_MODULE_OPTIONS],
@@ -87,9 +82,9 @@ export class QueueModule {
 
     return {
       module: QueueModule,
-      imports: options.imports || [],
+      imports: [...(options.imports || []), WorkerRegistryModule],
       providers,
-      exports: [QueueService],
+      exports: [QueueService, WorkerRegistryModule],
       global: options.isGlobal ?? false,
     };
   }
