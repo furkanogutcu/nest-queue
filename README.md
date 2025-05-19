@@ -13,6 +13,7 @@ NestJS queue management with BullMQ and Redis. Simple and type-safe.
   - [Basic Example](#basic-example)
   - [Using Custom Redis Key Prefix](#using-custom-redis-key-prefix)
   - [Using the Queue Service](#using-the-queue-service)
+  - [Creating and Using Workers](#creating-and-using-workers)
   - [Async Configuration](#async-configuration)
   - [Bull Board UI](#bull-board-ui)
 - [Development](#development)
@@ -37,9 +38,10 @@ yarn add @furkanogutcu/nest-queue
 - BullMQ-based queue management with a simplified API
 - Global or modular registration options
 - Configurable queue options with BullMQ compatibility
-- Custom Redis key prefix support
 - Synchronous and asynchronous module configuration
 - Type-safe interface with TypeScript
+- Worker decorators for easy queue processing
+- Bull Board UI integration for queue monitoring
 
 ## Usage
 
@@ -143,6 +145,8 @@ const customQueue = this.queueService.create('metrics', {
 
 ### Using the Queue Service
 
+The `QueueService` provides methods to interact with your queues. It allows you to add jobs, create new queues, and get existing ones.
+
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { QueueService } from '@furkanogutcu/nest-queue';
@@ -155,6 +159,7 @@ export class AppService {
     // Get an existing queue
     const emailQueue = this.queueService.get('emails');
 
+    // Add a job to the queue
     await emailQueue.add('send-welcome-email', {
       userId: 1,
       email: 'user@example.com',
@@ -166,6 +171,8 @@ export class AppService {
     const customQueue = this.queueService.create('custom-queue', {
       defaultJobOptions: {
         attempts: 5,
+        removeOnComplete: true,
+        removeOnFail: false,
       },
     });
 
@@ -176,6 +183,94 @@ export class AppService {
     // Get all registered queues
     const queues = this.queueService.getAll();
     return queues;
+  }
+}
+```
+
+### Creating and Using Workers
+
+Workers are responsible for processing jobs from queues. This library provides decorators to easily create and register workers.
+
+#### 1. Create a Worker
+
+```typescript
+import { Worker, BaseWorker, Job } from '@furkanogutcu/nest-queue';
+
+@Worker('emails', {
+  concurrency: 5, // Optional: Process 5 jobs at a time
+  limiter: {
+    // Optional: Rate limiting
+    max: 100, // Maximum number of jobs to process
+    duration: 1000, // Time window in milliseconds
+  },
+})
+export class EmailWorker extends BaseWorker {
+  async process(job: Job): Promise<any> {
+    // Process the job
+    const { email, userId } = job.data;
+
+    console.log(`Sending email to ${email} for user ${userId}`);
+
+    // Your email sending logic here
+
+    // Return result if needed
+    return { status: 'sent', timestamp: new Date() };
+  }
+}
+```
+
+#### 2. Register the Worker in a Module
+
+```typescript
+import { Module } from '@nestjs/common';
+import { QueueModule } from '@furkanogutcu/nest-queue';
+import { EmailWorker } from './email.worker';
+
+@Module({
+  imports: [
+    QueueModule.register({
+      redis: {
+        url: 'redis://localhost:6379',
+      },
+      queues: [{ name: 'emails' }],
+    }),
+  ],
+  providers: [EmailWorker], // Register the worker
+})
+export class AppModule {}
+```
+
+#### 3. Add Jobs to be Processed
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { QueueService } from '@furkanogutcu/nest-queue';
+
+@Injectable()
+export class EmailService {
+  constructor(private readonly queueService: QueueService) {}
+
+  async sendWelcomeEmail(userId: number, email: string): Promise<void> {
+    const emailQueue = this.queueService.get('emails');
+
+    await emailQueue.add(
+      'welcome-email',
+      {
+        userId,
+        email,
+        template: 'welcome',
+      },
+      {
+        // Job-specific options (override queue defaults)
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+        // Add job to delayed queue (execute after 5 seconds)
+        delay: 5000,
+      },
+    );
   }
 }
 ```
@@ -260,8 +355,6 @@ You can enable the Bull Board UI to monitor and manage your queues:
 ```typescript
 import { Module } from '@nestjs/common';
 import { QueueModule } from '@furkanogutcu/nest-queue';
-import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
 
 @Module({
   imports: [
@@ -278,8 +371,16 @@ import { NestExpressApplication } from '@nestjs/platform-express';
   ],
 })
 export class AppModule {}
+```
 
-// In your main.ts file
+Then in your main.ts file, set up the Bull Board UI:
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { QueueService } from '@furkanogutcu/nest-queue';
+import { AppModule } from './app.module';
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
