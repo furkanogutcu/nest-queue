@@ -5,7 +5,7 @@ import { QueueOptions } from 'bullmq';
 
 export interface QueueConfig {
   name: string;
-  options?: QueueOptions;
+  options?: Omit<QueueOptions, 'connection'>;
 }
 
 export interface BullBoardOptions {
@@ -18,7 +18,7 @@ export interface BullBoardOptions {
 }
 
 export interface ConfigOptions {
-  defaultQueueOptions?: QueueOptions;
+  defaultQueueOptions?: Omit<QueueOptions, 'connection'>;
 }
 
 export interface QueueModuleOptions {

@@ -33,24 +33,32 @@ export class QueueService implements OnModuleDestroy {
     this.initQueues(options.queuesConfig || []);
   }
 
-  /**
-   * Get the Redis connection used by this service
-   */
+  async onModuleDestroy(): Promise<void> {
+    const queues = this.getAll();
+
+    await Promise.all(
+      queues.map(async (queue) => {
+        try {
+          await queue.close();
+        } catch (error) {
+          console.error(`Error closing queue ${queue.name}:`, error);
+        }
+      }),
+    );
+
+    this.queues.clear();
+  }
+
   getRedisConnection(): Redis {
     return this.redisClient;
   }
 
-  create(name: string, options?: QueueOptions): Queue {
+  create(name: string, options?: Omit<QueueOptions, 'connection'>): Queue {
     if (this.queues.has(name)) {
       return this.queues.get(name)!;
     }
 
-    const queueOptions: QueueOptions = {
-      connection: this.redisClient,
-      ...(this.options.config?.defaultQueueOptions || {}),
-      ...(options || {}),
-    };
-
+    const queueOptions = this.createQueueOptions(options);
     const queue = new Queue(name, queueOptions);
 
     this.queues.set(name, queue);
@@ -105,29 +113,21 @@ export class QueueService implements OnModuleDestroy {
     },
   };
 
-  async onModuleDestroy(): Promise<void> {
-    await this.close();
-  }
-
-  private async close(): Promise<void> {
-    const queues = this.getAll();
-
-    await Promise.all(
-      queues.map(async (queue) => {
-        try {
-          await queue.close();
-        } catch (error) {
-          console.error(`Error closing queue ${queue.name}:`, error);
-        }
-      }),
-    );
-
-    this.queues.clear();
+  private createQueueOptions(options?: Omit<QueueOptions, 'connection'>): QueueOptions {
+    return {
+      connection: this.redisClient,
+      ...(this.options.config?.defaultQueueOptions || {}),
+      ...(options || {}),
+    };
   }
 
   private initQueues(queuesConfig: QueueConfig[]): void {
     for (const queueConfig of queuesConfig) {
-      this.create(queueConfig.name, queueConfig.options);
+      const queueOptions = this.createQueueOptions(queueConfig.options);
+
+      const queue = new Queue(queueConfig.name, queueOptions);
+
+      this.queues.set(queueConfig.name, queue);
     }
   }
 }
