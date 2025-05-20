@@ -8,7 +8,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { Queue, QueueOptions } from 'bullmq';
 
 import { QueueServiceOptions } from './interfaces';
-import { BullBoardOptions, QueueConfig } from './interfaces/queue-module-options.interface';
+import { BullBoardOptions, ConfigOptions, QueueConfig } from './interfaces/queue-module-options.interface';
 import { createBullBoardAuthMiddleware } from './middlewares/bull-board-auth.middleware';
 
 @Injectable()
@@ -21,13 +21,13 @@ export class QueueService implements OnModuleDestroy {
     redisService: RedisService,
     options: {
       queuesConfig?: QueueConfig[];
-      redisKeyPrefix?: string;
+      config?: ConfigOptions;
       bullBoard?: BullBoardOptions;
     },
   ) {
     this.redisClient = redisService.getClient();
 
-    this.options.redisKeyPrefix = options.redisKeyPrefix;
+    this.options.config = options.config;
     this.options.bullBoard = options.bullBoard;
 
     this.initQueues(options.queuesConfig || []);
@@ -47,12 +47,9 @@ export class QueueService implements OnModuleDestroy {
 
     const queueOptions: QueueOptions = {
       connection: this.redisClient,
-      ...options,
+      ...(this.options.config?.defaultQueueOptions || {}),
+      ...(options || {}),
     };
-
-    if (this.options.redisKeyPrefix && !queueOptions.prefix) {
-      queueOptions.prefix = this.options.redisKeyPrefix;
-    }
 
     const queue = new Queue(name, queueOptions);
 

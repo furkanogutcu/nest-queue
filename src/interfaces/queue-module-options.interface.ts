@@ -17,10 +17,14 @@ export interface BullBoardOptions {
   };
 }
 
+export interface ConfigOptions {
+  defaultQueueOptions?: QueueOptions;
+}
+
 export interface QueueModuleOptions {
   redis: RedisService | RedisConnectionOptions;
   queues?: QueueConfig[];
-  redisKeyPrefix?: string;
+  config?: ConfigOptions;
   isGlobal?: boolean;
   bullBoard?: BullBoardOptions;
 }
