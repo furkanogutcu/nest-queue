@@ -1,4 +1,5 @@
 import { WorkerOptions } from '../types';
+import { BaseWorker } from './base.worker';
 
 export interface WorkerMetadata {
   queueName: string;
@@ -8,6 +9,7 @@ export interface WorkerMetadata {
 export class WorkerRegistry {
   private static instance: WorkerRegistry;
   private readonly workersMetadata: Map<any, WorkerMetadata> = new Map();
+  private readonly workerInstances: Map<string, BaseWorker> = new Map();
 
   private constructor() {}
 
@@ -23,11 +25,19 @@ export class WorkerRegistry {
     this.workersMetadata.set(target, metadata);
   }
 
-  get(target: any): WorkerMetadata | undefined {
+  registerWorkerInstance(queueName: string, instance: BaseWorker): void {
+    this.workerInstances.set(queueName, instance);
+  }
+
+  getWorkerInstance(queueName: string): BaseWorker | undefined {
+    return this.workerInstances.get(queueName);
+  }
+
+  getWorkerMetadata(target: any): WorkerMetadata | undefined {
     return this.workersMetadata.get(target);
   }
 
-  getAll(): Map<any, WorkerMetadata> {
+  getAllWorkerMetadata(): Map<any, WorkerMetadata> {
     return this.workersMetadata;
   }
 }

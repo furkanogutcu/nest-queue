@@ -9,14 +9,16 @@ import { WorkerMetadata, WorkerRegistry } from './worker.registry';
 @Injectable()
 export class WorkerRegistryService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly workers: Worker[] = [];
-  private readonly workerInstances: Map<string, BaseWorker> = new Map();
 
   constructor(private readonly queueService: QueueService) {}
 
   onApplicationBootstrap(): void {
-    const workersMetadata = WorkerRegistry.getInstance().getAll();
+    const workersMetadata = WorkerRegistry.getInstance().getAllWorkerMetadata();
 
-    if (this.hasNoWorkers(workersMetadata)) {
+    if (workersMetadata.size === 0) {
+      console.warn(
+        'No queue workers found in the application. Make sure you use the @Worker decorator on your worker classes.',
+      );
       return;
     }
 
@@ -25,18 +27,6 @@ export class WorkerRegistryService implements OnApplicationBootstrap, OnModuleDe
 
   async onModuleDestroy(): Promise<void> {
     await this.closeAllWorkers();
-  }
-
-  private hasNoWorkers(workersMetadata: Map<any, WorkerMetadata>): boolean {
-    if (workersMetadata.size === 0) {
-      console.warn(
-        'No queue workers found in the application. Make sure you use the @Worker decorator on your worker classes.',
-      );
-
-      return true;
-    }
-
-    return false;
   }
 
   private createBullMQWorkers(workersMetadata: Map<any, WorkerMetadata>): void {
@@ -53,27 +43,12 @@ export class WorkerRegistryService implements OnApplicationBootstrap, OnModuleDe
 
   private createWorker(targetClass: any, metadata: WorkerMetadata, redisConnection: any): void {
     const queueName = metadata.queueName;
-
-    const workerInstance = new targetClass() as BaseWorker;
-
-    if (!('process' in workerInstance)) {
-      throw new Error(
-        `Worker class ${targetClass.name} does not implement the 'process' method. Make sure it extends BaseWorker class.`,
-      );
-    }
-
-    this.workerInstances.set(queueName, workerInstance);
+    const workerInstance = this.getWorkerInstance(queueName, targetClass);
 
     const worker = new Worker(
       queueName,
       async (job: Job) => {
-        const instance = this.workerInstances.get(queueName);
-
-        if (!instance) {
-          throw new Error(`No worker instance found for queue ${queueName}`);
-        }
-
-        return await instance.process(job);
+        return await workerInstance.process(job);
       },
       {
         connection: redisConnection,
@@ -82,6 +57,30 @@ export class WorkerRegistryService implements OnApplicationBootstrap, OnModuleDe
     );
 
     this.workers.push(worker);
+  }
+
+  private getWorkerInstance(queueName: string, targetClass: any): BaseWorker {
+    const existingInstance = WorkerRegistry.getInstance().getWorkerInstance(queueName);
+
+    if (existingInstance) {
+      return existingInstance;
+    }
+
+    console.warn(
+      `Worker instance for ${targetClass.name} not found in registry. ` +
+        `Creating new instance. This may cause dependency injection issues.`,
+    );
+
+    const workerInstance = new targetClass() as BaseWorker;
+
+    if (!('process' in workerInstance)) {
+      throw new Error(
+        `Worker class ${targetClass.name} does not implement the 'process' method. ` +
+          `Make sure it extends BaseWorker class.`,
+      );
+    }
+
+    return workerInstance;
   }
 
   private async closeAllWorkers(): Promise<void> {
@@ -94,7 +93,5 @@ export class WorkerRegistryService implements OnApplicationBootstrap, OnModuleDe
         }
       }),
     );
-
-    this.workerInstances.clear();
   }
 }
