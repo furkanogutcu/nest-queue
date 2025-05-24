@@ -279,10 +279,13 @@ export class AppService {
 
 Workers are responsible for processing jobs from queues. This library provides decorators to easily create and register workers.
 
+> **🔄 Dependency Injection Support**: Workers are fully integrated with NestJS dependency injection. When you register a worker as a provider, it will be instantiated by NestJS with all its dependencies properly injected. The library uses a self-registration pattern where workers automatically register themselves in the internal registry during module initialization, ensuring single instance usage and proper DI support.
+
 #### 1. Create a Worker
 
 ```typescript
 import { Worker, BaseWorker, Job } from '@furkanogutcu/nest-queue';
+import { Injectable } from '@nestjs/common';
 
 @Worker('emails', {
   concurrency: 5, // Optional: Process 5 jobs at a time
@@ -292,14 +295,24 @@ import { Worker, BaseWorker, Job } from '@furkanogutcu/nest-queue';
     duration: 1000, // Time window in milliseconds
   },
 })
+@Injectable()
 export class EmailWorker extends BaseWorker {
+  constructor(
+    private readonly emailService: EmailService,
+    private readonly userService: UserService,
+  ) {
+    super();
+  }
+
   async process(job: Job): Promise<any> {
-    // Process the job
+    // Process the job with injected dependencies
     const { email, userId } = job.data;
 
-    console.log(`Sending email to ${email} for user ${userId}`);
+    // Use injected services
+    const user = await this.userService.findById(userId);
+    await this.emailService.sendWelcomeEmail(user.email, user.name);
 
-    // Your email sending logic here
+    console.log(`Email sent to ${email} for user ${userId}`);
 
     // Return result if needed
     return { status: 'sent', timestamp: new Date() };
